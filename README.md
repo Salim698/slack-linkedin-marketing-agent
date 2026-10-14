@@ -2,6 +2,11 @@
 
 Agent IA construit avec **n8n** qui aide à concevoir des stratégies marketing directement depuis Slack, et qui peut publier un post sur LinkedIn **uniquement après validation explicite** de l'utilisateur.
 
+
+## Aperçu
+
+![Vue d'ensemble du workflow n8n](images/slack-linkedin-marketing-agent.png)
+
 ## Fonctionnement
 
 ```
