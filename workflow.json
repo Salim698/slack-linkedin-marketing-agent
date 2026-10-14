@@ -1,0 +1,145 @@
+{
+  "name": "Marketing Strategy Agent - Slack x LinkedIn",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Tu es un spécialiste en stratégie marketing.  \nTa mission est d'assister l'utilisateur dans la création d'une stratégie marketing pertinente, professionnelle et attractive.\n\nTu disposes des outils suivants :\n- Read_Formations : permet d'accéder au catalogue de formations.\n- Post_LinkedIn : permet de publier des posts sur LinkedIn.\n\nN'utilise Post_LinkedIn que si l'utilisateur te le demande explicitement de l'utiliser et UNIQUEMENT après avoir demandé la validation à l'utilisateur.\nSinon répond par des conseils marketing adaptés au format texte.\nPour utiliser Post_LinkedIn, tu dois lui fournir le corps du message au format JSON suivant :\n{\n  \"author\": \"urn:li:person:YOUR_LINKEDIN_PERSON_ID\",\n  \"lifecycleState\": \"PUBLISHED\",\n  \"specificContent\": {\n    \"com.linkedin.ugc.ShareContent\": {\n      \"shareCommentary\": {\n        \"text\": \"linkedin_message\"\n      },\n      \"shareMediaCategory\": \"NONE\"\n    }\n  },\n  \"visibility\": {\n    \"com.linkedin.ugc.MemberNetworkVisibility\": \"PUBLIC\"\n  }\n}\n\nDans ce JSON :\n- Ne modifie JAMAIS la structure du JSON\n- Ne modifie **aucune clé ni aucune valeur**, sauf `\"linkedin_message\"`.\n- Remplace UNIQUEMENT `\"linkedin_message\"` par le texte du message à publier.\n- Le message doit être rédigé uniquement en **texte** (pas d'images).\n- Rédige un contenu professionnel, engageant et adapté au contexte.\n\nPrends en compte les informations fournies par l'utilisateur dans l'input du Chat : `{{$json.chatInput}}`.",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [336, -64],
+      "id": "068bcf0f-6599-4429-9865-c1b109cfe7ac",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "o1",
+          "mode": "list",
+          "cachedResultName": "o1"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [208, 144],
+      "id": "7959fca7-ec8c-4aae-bba7-2695be500863",
+      "name": "OpenAI Chat Model"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [352, 144],
+      "id": "38444c22-4d9a-4259-8a13-e392cc80baf7",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "url": "https://YOUR_FORMATIONS_API_URL/api/v1/formations",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [672, 144],
+      "id": "0e056f01-e91c-4d57-8df3-7786e360146f",
+      "name": "Read_Formations",
+      "rewireOutputLogTo": "ai_tool"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linkedin.com/v2/ugcPosts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('JSON', ``, 'json') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [496, 144],
+      "id": "061df5d5-5eea-4911-8d54-96b5f86893b8",
+      "name": "Post_LinkedIn"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "slack-events",
+        "options": {}
+      },
+      "id": "ffba987c-2857-4a17-905b-66be20e2c61a",
+      "name": "Slack Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [-80, -64],
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const out = [];\n\nfor (const item of $input.all()) {\n  const eventUser = item.json.body?.event?.user;\n  const botUser = item.json.body?.authorizations?.[0]?.user_id;\n\n  // STOP loop: refuse to process bot messages\n  if (eventUser === botUser) {\n    return [];  // Stop workflow COMPLETELY\n  }\n\n  const blocks = item.json.body.event.blocks;\n  const text = blocks?.[0]?.elements?.[0]?.elements?.[1]?.text?.trim() || \"\";\n\n  out.push({\n    json: {\n      chatInput: text.replace(/^<@[^>]+>\\s*/, \"\"),\n      sessionId: 42\n    }\n  });\n}\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [144, -64],
+      "id": "565daab1-4047-4ae2-a26d-2204b6c165e8",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "text": "={{ $json.output }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [688, -64],
+      "id": "623b999d-a105-4fbc-9867-ecd64de2521a",
+      "name": "Send a message"
+    }
+  ],
+  "connections": {
+    "AI Agent": {
+      "main": [[{ "node": "Send a message", "type": "main", "index": 0 }]]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [[{ "node": "AI Agent", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Simple Memory": {
+      "ai_memory": [[{ "node": "AI Agent", "type": "ai_memory", "index": 0 }]]
+    },
+    "Read_Formations": {
+      "ai_tool": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "Post_LinkedIn": {
+      "ai_tool": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "Slack Webhook": {
+      "main": [[{ "node": "Code in JavaScript", "type": "main", "index": 0 }]]
+    },
+    "Code in JavaScript": {
+      "main": [[{ "node": "AI Agent", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "meta": {}
+}
